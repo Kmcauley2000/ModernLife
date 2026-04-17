@@ -2,88 +2,101 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Modern World Life — Expanded Edition</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>Modern World Life — iPhone Edition</title>
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
-  <main class="game">
-    <header class="topbar">
+  <main class="phone-shell">
+    <header class="app-header">
       <div>
-        <h1 class="title">🌆 Modern World Life — Expanded Edition</h1>
-        <div class="subtitle">Build a career, reputation, and lifestyle while surviving modern city chaos.</div>
+        <h1 class="title">🌆 Modern World Life</h1>
+        <p class="subtitle">PixelLife-style, optimized for iPhone.</p>
       </div>
-      <div class="chips">
-        <div class="chip">Cycle <strong id="cycleLabel">Morning</strong></div>
-        <div class="chip">Day <strong id="dayLabel">1</strong></div>
-        <div class="chip">Difficulty <strong>Normal</strong></div>
-      </div>
+      <button id="nextCycle" class="btn primary compact">Next Cycle</button>
     </header>
 
-    <section class="grid">
-      <section class="panel">
-        <h2>Player HUD</h2>
-        <div class="stats">
-          <div class="stat">Level <strong id="level">1</strong>
-            <div class="meter"><i id="xpBar"></i></div>
-            <div class="muted">XP <span id="xpText">0/20</span></div>
-          </div>
-          <div class="stat">Health <strong id="health">100</strong>
-            <div class="meter"><i id="healthBar"></i></div>
-          </div>
-          <div class="stat">Energy <strong id="energy">100</strong>
-            <div class="meter"><i id="energyBar"></i></div>
-          </div>
-          <div class="stat">Focus <strong id="focus">65</strong>
-            <div class="meter"><i id="focusBar"></i></div>
-          </div>
-          <div class="stat">Cash <strong>$<span id="cash">60</span></strong></div>
-          <div class="stat">Reputation <strong id="rep">0</strong></div>
-          <div class="stat">Career <strong id="career">0</strong></div>
-          <div class="stat">Stress <strong id="stress">22</strong>
-            <div class="meter"><i id="stressBar"></i></div>
-          </div>
-        </div>
+    <section class="top-stats card">
+      <div class="pill">Day <strong id="dayLabel">1</strong></div>
+      <div class="pill">Cycle <strong id="cycleLabel">Morning</strong></div>
+      <div class="pill">Lvl <strong id="level">1</strong></div>
+      <div class="pill">$<strong id="cash">60</strong></div>
+    </section>
 
-        <h3>City Map</h3>
-        <div class="route-buttons" id="routes"></div>
+    <section class="hud card">
+      <div class="hud-row">
+        <span>XP <strong id="xpText">0/20</strong></span>
+        <div class="meter"><i id="xpBar"></i></div>
+      </div>
+      <div class="hud-row">
+        <span>Health <strong id="health">100</strong></span>
+        <div class="meter"><i id="healthBar"></i></div>
+      </div>
+      <div class="hud-row">
+        <span>Energy <strong id="energy">100</strong></span>
+        <div class="meter"><i id="energyBar"></i></div>
+      </div>
+      <div class="hud-row">
+        <span>Focus <strong id="focus">65</strong></span>
+        <div class="meter"><i id="focusBar"></i></div>
+      </div>
+      <div class="hud-row">
+        <span>Stress <strong id="stress">22</strong></span>
+        <div class="meter"><i id="stressBar"></i></div>
+      </div>
+      <div class="meta">
+        <span>Reputation: <strong id="rep">0</strong></span>
+        <span>Career: <strong id="career">0</strong></span>
+      </div>
+    </section>
 
-        <h3 id="sceneTitle">Apartment</h3>
+    <nav class="tabbar card" aria-label="Game sections">
+      <button class="btn tab is-active" data-tab="game">Game</button>
+      <button class="btn tab" data-tab="progress">Progress</button>
+      <button class="btn tab" data-tab="journal">Journal</button>
+      <button class="btn tab" data-tab="system">System</button>
+    </nav>
+
+    <section class="panel-stack">
+      <section class="panel card" data-panel="game">
+        <h2 id="sceneTitle">Apartment</h2>
         <p class="scene-text" id="sceneText"></p>
+        <h3>Locations</h3>
+        <div class="route-buttons" id="routes"></div>
+        <h3>Actions</h3>
         <div class="actions" id="actions"></div>
+      </section>
 
-        <div class="footer-controls">
-          <div class="controls">
-            <button id="nextCycle" class="primary">Continue → Next Cycle</button>
-            <button id="restBtn">Power Nap</button>
-            <button id="meditateBtn">Breathing Exercise</button>
-          </div>
-          <div class="controls">
-            <button id="saveBtn">Save</button>
-            <button id="loadBtn">Load</button>
-            <button id="newRunBtn">New Run</button>
-          </div>
-        </div>
+      <section class="panel card hidden" data-panel="progress">
+        <h3>Quests</h3>
+        <ul class="quest-list" id="questList"></ul>
 
+        <h3>Inventory</h3>
+        <ul class="inventory" id="inventory"></ul>
+
+        <h3>Achievements</h3>
+        <ul class="achievements" id="achievements"></ul>
+      </section>
+
+      <section class="panel card hidden" data-panel="journal">
+        <h3>Life Log</h3>
         <div class="log" id="log" aria-live="polite"></div>
       </section>
 
-      <aside class="right-col">
-        <section class="panel">
-          <h3>Quests</h3>
-          <ul class="quest-list" id="questList"></ul>
-        </section>
+      <section class="panel card hidden" data-panel="system">
+        <h3>Recovery</h3>
+        <div class="controls">
+          <button id="restBtn" class="btn">Power Nap</button>
+          <button id="meditateBtn" class="btn">Breathing Exercise</button>
+        </div>
 
-        <section class="panel">
-          <h3>Inventory</h3>
-          <ul class="inventory" id="inventory"></ul>
-        </section>
-
-        <section class="panel">
-          <h3>Achievements</h3>
-          <ul class="achievements" id="achievements"></ul>
-        </section>
-      </aside>
+        <h3>Save / Load</h3>
+        <div class="controls">
+          <button id="saveBtn" class="btn">Save</button>
+          <button id="loadBtn" class="btn">Load</button>
+          <button id="newRunBtn" class="btn danger">New Run</button>
+        </div>
+      </section>
     </section>
   </main>
 
