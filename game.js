@@ -343,6 +343,21 @@ function bindUI() {
   };
 
   const engine = new GameEngine();
+  const tabs = Array.from(document.querySelectorAll("[data-tab]"));
+  const panels = Array.from(document.querySelectorAll("[data-panel]"));
+
+  const activateTab = tabName => {
+    tabs.forEach(btn => {
+      btn.classList.toggle("is-active", btn.dataset.tab === tabName);
+    });
+    panels.forEach(panel => {
+      panel.classList.toggle("hidden", panel.dataset.panel !== tabName);
+    });
+  };
+
+  tabs.forEach(btn => {
+    btn.addEventListener("click", () => activateTab(btn.dataset.tab));
+  });
 
   const renderScene = () => {
     const loc = engine.locations[engine.state.location];
@@ -473,6 +488,7 @@ function bindUI() {
 
   engine.log("Welcome to the expanded modern-world run.", "good");
   engine.log("Tip: Build rep + career to unlock stronger outcomes.", "warn");
+  activateTab("game");
   renderAll();
 }
 
