@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Modern World Life — Expanded Edition</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <main class="game">
+    <header class="topbar">
+      <div>
+        <h1 class="title">🌆 Modern World Life — Expanded Edition</h1>
+        <div class="subtitle">Build a career, reputation, and lifestyle while surviving modern city chaos.</div>
+      </div>
+      <div class="chips">
+        <div class="chip">Cycle <strong id="cycleLabel">Morning</strong></div>
+        <div class="chip">Day <strong id="dayLabel">1</strong></div>
+        <div class="chip">Difficulty <strong>Normal</strong></div>
+      </div>
+    </header>
+
+    <section class="grid">
+      <section class="panel">
+        <h2>Player HUD</h2>
+        <div class="stats">
+          <div class="stat">Level <strong id="level">1</strong>
+            <div class="meter"><i id="xpBar"></i></div>
+            <div class="muted">XP <span id="xpText">0/20</span></div>
+          </div>
+          <div class="stat">Health <strong id="health">100</strong>
+            <div class="meter"><i id="healthBar"></i></div>
+          </div>
+          <div class="stat">Energy <strong id="energy">100</strong>
+            <div class="meter"><i id="energyBar"></i></div>
+          </div>
+          <div class="stat">Focus <strong id="focus">65</strong>
+            <div class="meter"><i id="focusBar"></i></div>
+          </div>
+          <div class="stat">Cash <strong>$<span id="cash">60</span></strong></div>
+          <div class="stat">Reputation <strong id="rep">0</strong></div>
+          <div class="stat">Career <strong id="career">0</strong></div>
+          <div class="stat">Stress <strong id="stress">22</strong>
+            <div class="meter"><i id="stressBar"></i></div>
+          </div>
+        </div>
+
+        <h3>City Map</h3>
+        <div class="route-buttons" id="routes"></div>
+
+        <h3 id="sceneTitle">Apartment</h3>
+        <p class="scene-text" id="sceneText"></p>
+        <div class="actions" id="actions"></div>
+
+        <div class="footer-controls">
+          <div class="controls">
+            <button id="nextCycle" class="primary">Continue → Next Cycle</button>
+            <button id="restBtn">Power Nap</button>
+            <button id="meditateBtn">Breathing Exercise</button>
+          </div>
+          <div class="controls">
+            <button id="saveBtn">Save</button>
+            <button id="loadBtn">Load</button>
+            <button id="newRunBtn">New Run</button>
+          </div>
+        </div>
+
+        <div class="log" id="log" aria-live="polite"></div>
+      </section>
+
+      <aside class="right-col">
+        <section class="panel">
+          <h3>Quests</h3>
+          <ul class="quest-list" id="questList"></ul>
+        </section>
+
+        <section class="panel">
+          <h3>Inventory</h3>
+          <ul class="inventory" id="inventory"></ul>
+        </section>
+
+        <section class="panel">
+          <h3>Achievements</h3>
+          <ul class="achievements" id="achievements"></ul>
+        </section>
+      </aside>
+    </section>
+  </main>
+
+  <script type="module" src="./game.js"></script>
+</body>
+</html>
