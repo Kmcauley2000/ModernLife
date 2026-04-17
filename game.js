@@ -1,72 +1,90 @@
 const SAVE_KEY = "modern-world-life-save";
-const SAVE_VERSION = 2;
-const CYCLES = ["Morning", "Afternoon", "Evening", "Night"];
+const SAVE_VERSION = 3;
 
-export const xpToLevel = lvl => 20 + lvl * 12;
+const LIFE_STAGES = [
+  { key: "infant", label: "Infant", min: 0, max: 4 },
+  { key: "child", label: "Child", min: 5, max: 12 },
+  { key: "teen", label: "Teen", min: 13, max: 17 },
+  { key: "young-adult", label: "Young Adult", min: 18, max: 25 },
+  { key: "adult", label: "Adult", min: 26, max: 64 },
+  { key: "elder", label: "Elder", min: 65, max: 120 }
+];
+
+export const xpToLevel = lvl => 20 + lvl * 10;
 
 export const BASE_STATE = {
   saveVersion: SAVE_VERSION,
+  age: 0,
+  stage: "infant",
   level: 1,
   xp: 0,
-  health: 100,
+  health: 95,
   energy: 100,
-  focus: 65,
-  cash: 60,
+  focus: 35,
+  happiness: 60,
+  stress: 8,
+  cash: 0,
   rep: 0,
   career: 0,
-  stress: 22,
-  day: 1,
-  cycle: 0,
-  location: "apartment",
-  inventory: ["Phone", "Transit Card", "Laptop"],
+  education: 0,
+  location: "home",
+  inventory: ["Baby Blanket"],
   achievements: [],
   quests: [
-    { id: "first-gig", name: "Finish 1 paid gig", target: 1, progress: 0, reward: "$30 + 8 XP", done: false },
-    { id: "wellness", name: "Reduce stress below 20", target: 1, progress: 0, reward: "+12 Rep", done: false },
-    { id: "network", name: "Gain 25 reputation", target: 25, progress: 0, reward: "Freelancer Badge", done: false }
+    { id: "first-day-school", name: "Start School", target: 1, progress: 0, reward: "+8 Education", done: false },
+    { id: "graduate-school", name: "Graduate High School", target: 1, progress: 0, reward: "+15 Rep", done: false },
+    { id: "first-job", name: "Get First Real Job", target: 1, progress: 0, reward: "$120", done: false },
+    { id: "career-build", name: "Reach 60 Career", target: 60, progress: 0, reward: "Career Momentum Badge", done: false }
   ],
-  stats: { wins: 0, losses: 0 }
+  stats: { yearsLived: 0 }
 };
 
+const clamp = (v, min = 0, max = 120) => Math.max(min, Math.min(max, v));
 const clone = obj => structuredClone(obj);
-const clamp = (v, min = 0, max = 100) => Math.max(min, Math.min(max, v));
+
+const getStageFromAge = age => LIFE_STAGES.find(s => age >= s.min && age <= s.max) || LIFE_STAGES[LIFE_STAGES.length - 1];
 
 export class GameEngine {
   constructor(randomFn = Math.random) {
     this.random = randomFn;
     this.state = clone(BASE_STATE);
     this.logs = [];
-    this.locations = this.createLocations();
+    this.locations = this.getLocationsForStage(this.state.stage);
   }
 
   log(message, cls = "") {
     this.logs.unshift({ message, cls });
   }
 
+  unlockAchievement(name, description) {
+    if (this.state.achievements.some(a => a.name === name)) return;
+    this.state.achievements.push({ name, description, age: this.state.age });
+    this.log(`🏆 Achievement unlocked: ${name}`, "good");
+  }
+
   getQuest(id) {
     return this.state.quests.find(q => q.id === id);
   }
 
-  trackQuest(id, amount = 1) {
+  completeQuest(id) {
     const q = this.getQuest(id);
-    if (!q || q.done || amount <= 0) return;
-    q.progress = Math.min(q.target, q.progress + amount);
-    if (q.progress >= q.target) {
-      q.done = true;
-      this.claimQuestReward(q);
+    if (!q || q.done) return;
+    q.progress = q.target;
+    q.done = true;
+    if (id === "first-day-school") this.adjust({ education: +8, xp: +8 }, "You settled into school life.", "good", false);
+    if (id === "graduate-school") this.adjust({ rep: +15, xp: +12 }, "You graduated high school.", "good", false);
+    if (id === "first-job") this.adjust({ cash: +120, career: +10, xp: +12 }, "You landed your first real job.", "good", false);
+    if (id === "career-build") {
+      this.addItem("Career Momentum Badge");
+      this.adjust({ rep: +15, xp: +12 }, "You built a serious career reputation.", "good", false);
     }
   }
 
-  claimQuestReward(q) {
-    if (q.id === "first-gig") {
-      this.adjust({ cash: +30, xp: +8 }, `Quest complete: ${q.name}. Reward claimed.`, "good", false);
-    } else if (q.id === "wellness") {
-      this.adjust({ rep: +12, xp: +8 }, `Quest complete: ${q.name}. Reward claimed.`, "good", false);
-    } else if (q.id === "network") {
-      this.addItem("Freelancer Badge");
-      this.adjust({ xp: +10 }, `Quest complete: ${q.name}. Reward claimed.`, "good", false);
-    }
-    this.unlockAchievement(`Quest: ${q.name}`, "Completed a major objective.");
+  trackCareerQuest() {
+    const q = this.getQuest("career-build");
+    if (!q || q.done) return;
+    q.progress = Math.min(q.target, this.state.career);
+    if (q.progress >= q.target) this.completeQuest("career-build");
   }
 
   addItem(item) {
@@ -76,122 +94,121 @@ export class GameEngine {
     }
   }
 
-  unlockAchievement(name, description) {
-    if (this.state.achievements.some(a => a.name === name)) return;
-    this.state.achievements.push({ name, description, day: this.state.day });
-    this.log(`🏆 Achievement unlocked: ${name}`, "good");
-  }
-
   gainXp(amount) {
     this.state.xp += amount;
     while (this.state.xp >= xpToLevel(this.state.level)) {
       this.state.xp -= xpToLevel(this.state.level);
       this.state.level += 1;
-      this.state.health = clamp(this.state.health + 9, 0, 120);
-      this.state.focus = clamp(this.state.focus + 7, 0, 120);
-      this.state.energy = clamp(this.state.energy + 6, 0, 120);
-      this.state.rep += 2;
-      this.log(`⚡ Level up! You are now level ${this.state.level}.`, "good");
+      this.state.health = clamp(this.state.health + 4);
+      this.state.energy = clamp(this.state.energy + 4);
+      this.state.focus = clamp(this.state.focus + 4);
+      this.log(`⚡ Growth level up: ${this.state.level}.`, "good");
     }
   }
 
-  adjust(delta, msg, cls = "good", runConsequences = true) {
-    const beforeRep = this.state.rep;
-
+  adjust(delta, msg = "", cls = "good", runConsequences = true) {
     for (const [key, value] of Object.entries(delta)) {
       if (key === "xp") continue;
       if (typeof this.state[key] === "number") this.state[key] += value;
     }
 
-    this.state.health = clamp(this.state.health, 0, 120);
-    this.state.energy = clamp(this.state.energy, 0, 120);
-    this.state.focus = clamp(this.state.focus, 0, 120);
-    this.state.stress = clamp(this.state.stress, 0, 120);
+    this.state.health = clamp(this.state.health);
+    this.state.energy = clamp(this.state.energy);
+    this.state.focus = clamp(this.state.focus);
+    this.state.happiness = clamp(this.state.happiness);
+    this.state.stress = clamp(this.state.stress);
     this.state.cash = Math.max(0, Math.round(this.state.cash));
     this.state.rep = Math.max(0, Math.round(this.state.rep));
     this.state.career = Math.max(0, Math.round(this.state.career));
+    this.state.education = Math.max(0, Math.round(this.state.education));
 
     if (delta.xp) this.gainXp(delta.xp);
     if (msg) this.log(msg, cls);
 
-    if (this.state.stress < 20) this.trackQuest("wellness", 1);
-    const repGained = Math.max(0, this.state.rep - beforeRep);
-    this.trackQuest("network", repGained);
-
+    this.trackCareerQuest();
     if (runConsequences) this.passiveConsequences();
   }
 
   passiveConsequences() {
     if (this.state.stress > 95) {
-      this.state.health = clamp(this.state.health - 10, 0, 120);
-      this.state.focus = clamp(this.state.focus - 12, 0, 120);
-      this.log("Stress overload hurt your health and focus.", "bad");
+      this.state.health = clamp(this.state.health - 8);
+      this.state.happiness = clamp(this.state.happiness - 10);
+      this.log("Burnout is damaging your health.", "bad");
     }
-    if (this.state.energy <= 8) {
-      this.state.focus = clamp(this.state.focus - 8, 0, 120);
-      this.log("Low energy reduced focus.", "warn");
+    if (this.state.energy < 15) {
+      this.state.focus = clamp(this.state.focus - 7);
+      this.log("Low energy hurt your focus.", "warn");
     }
-    if (this.state.health <= 0) this.log("You burned out completely. Start a new run.", "bad");
-    if (this.state.career >= 80) this.unlockAchievement("Career Momentum", "Reached 80 career points.");
-    if (this.state.cash >= 500) this.unlockAchievement("Rainy Day Fund", "Saved over $500.");
-  }
-
-  encounter(name, minDiff, maxDiff, successDelta, failDelta) {
-    if (this.state.health <= 0) return this.log("You need recovery before conflicts.", "warn");
-    const difficulty = Math.floor(this.random() * (maxDiff - minDiff + 1)) + minDiff;
-    const power = this.state.level * 8 + this.state.rep * 0.65 + this.state.focus * 0.25 + this.state.career * 0.2;
-    if (power >= difficulty) {
-      this.state.stats.wins += 1;
-      this.adjust(successDelta, `You won the encounter with ${name}.`, "good");
-    } else {
-      this.state.stats.losses += 1;
-      this.adjust(failDelta, `${name} got the upper hand.`, "bad");
+    if (this.state.age >= 18 && this.state.cash >= 2000) {
+      this.unlockAchievement("Financial Base", "Saved over $2000 in adulthood.");
     }
-    if (this.state.stats.wins >= 8) this.unlockAchievement("Street Smart", "Won 8 encounters.");
   }
 
-  purchase(item, cost, delta, description) {
-    if (this.state.cash < cost) return this.log("Not enough cash for that purchase.", "warn");
-    this.state.cash -= cost;
-    this.addItem(item);
-    this.adjust({ ...delta, xp: 3 }, `Purchased ${item}. ${description}`);
+  setLocation(key) {
+    this.state.location = key;
   }
 
-  dailyTick() {
-    const rent = 18;
-    this.state.cash = Math.max(0, this.state.cash - rent);
-    this.state.stress = clamp(this.state.stress + 4, 0, 120);
-    this.state.energy = clamp(this.state.energy - 4, 0, 120);
-    this.log(`Day ${this.state.day} started. Daily costs paid: $${rent}.`, "warn");
-    if (this.state.day >= 10) this.unlockAchievement("10-Day Survivor", "Made it to day 10.");
-  }
-
-  randomEvent() {
+  randomLifeEvent() {
     const roll = this.random();
-    if (roll > 0.86) {
-      this.adjust({ cash: +35, rep: +6, xp: +9 }, "A viral post boosted your profile overnight.", "good");
-    } else if (roll < 0.12) {
-      this.adjust({ cash: -20, stress: +10, health: -5 }, "Unexpected bill hit your budget.", "bad");
+    if (roll > 0.92) {
+      this.adjust({ happiness: +8, rep: +4, xp: +6 }, "A great life moment boosted your confidence.", "good");
+    } else if (roll < 0.1) {
+      this.adjust({ stress: +8, happiness: -5, health: -3 }, "A tough year brought extra pressure.", "bad");
+    }
+  }
+
+  stageTransitionIfNeeded() {
+    const stage = getStageFromAge(this.state.age);
+    if (stage.key === this.state.stage) return;
+
+    this.state.stage = stage.key;
+    this.locations = this.getLocationsForStage(stage.key);
+    this.state.location = Object.keys(this.locations)[0];
+    this.log(`New life stage: ${stage.label}.`, "good");
+
+    if (stage.key === "child") {
+      this.completeQuest("first-day-school");
+      this.addItem("School Backpack");
+    }
+    if (stage.key === "young-adult") {
+      if (this.state.education >= 45) this.completeQuest("graduate-school");
+      this.addItem("Resume");
+    }
+    if (stage.key === "adult") {
+      this.completeQuest("first-job");
+    }
+    if (stage.key === "elder") {
+      this.unlockAchievement("Long Life", "Reached elder years.");
     }
   }
 
   advanceCycle() {
-    this.state.cycle += 1;
-    if (this.state.cycle >= CYCLES.length) {
-      this.state.cycle = 0;
-      this.state.day += 1;
-      this.dailyTick();
-    }
-    this.adjust({ energy: -5, stress: +2 }, `Time advanced to ${CYCLES[this.state.cycle]}.`, "warn");
-    this.randomEvent();
-  }
+    this.state.age += 1;
+    this.state.stats.yearsLived += 1;
 
-  setLocation(key) { this.state.location = key; }
+    this.adjust({
+      energy: -4,
+      health: this.state.age > 60 ? -2 : -1,
+      stress: +2,
+      happiness: this.state.age < 18 ? +1 : 0,
+      cash: this.state.age >= 18 ? +20 : 0,
+      xp: 5
+    }, `You lived through age ${this.state.age}.`, "warn", false);
+
+    this.stageTransitionIfNeeded();
+    this.randomLifeEvent();
+    this.passiveConsequences();
+
+    if (this.state.age === 18) this.unlockAchievement("Adult Life Begins", "Entered adulthood.");
+    if (this.state.age === 30) this.unlockAchievement("30-Year Milestone", "Reached age 30.");
+    if (this.state.age === 50) this.unlockAchievement("Half Century", "Reached age 50.");
+  }
 
   newRun() {
     this.state = clone(BASE_STATE);
+    this.locations = this.getLocationsForStage(this.state.stage);
     this.logs = [];
-    this.log("New run started. Welcome back to the city.", "good");
+    this.log("New life started: you are born into the modern world.", "good");
   }
 
   serialize() {
@@ -202,130 +219,134 @@ export class GameEngine {
     const parsed = JSON.parse(raw);
     const migrated = migrateSave(parsed);
     this.state = { ...clone(BASE_STATE), ...migrated };
+    this.locations = this.getLocationsForStage(this.state.stage);
     this.log("Save loaded successfully.", "good");
   }
 
-  createLocations() {
-    return {
-      apartment: {
-        title: "Apartment",
-        text: "Your base. Recover, budget, and plan tomorrow.",
+  getLocationsForStage(stage) {
+    const common = {
+      home: {
+        title: "Home",
+        text: "Your foundation for rest, growth, and family life.",
         actions: [
-          { label: "Cook Meal", run: () => this.adjust({ cash: -8, health: +9, energy: +6, stress: -4, xp: +4 }, "Home-cooked meal restored your mood.") },
-          {
-            label: "Side Hustle Online", run: () => {
-              if (this.random() > 0.7) {
-                this.adjust({ cash: +38, career: +10, energy: -12, focus: -7, xp: +10 }, "A premium client paid same day.");
-              } else {
-                this.adjust({ cash: +18, career: +5, energy: -8, focus: -4, xp: +6 }, "Completed a routine remote task.");
-              }
-              this.trackQuest("first-gig", 1);
-            }
-          },
-          { label: "Budget & Plan", run: () => this.adjust({ focus: +10, stress: -6, xp: +5 }, "You organized your finances and priorities.") }
-        ]
-      },
-      downtown: {
-        title: "Downtown",
-        text: "Crowded, fast, and full of opportunity.",
-        actions: [
-          {
-            label: "Gig Delivery", run: () => {
-              if (this.state.energy < 15) return this.log("Too exhausted for delivery. Rest first.", "warn");
-              const tip = this.random() > 0.65 ? 20 : 8;
-              this.adjust({ cash: 22 + tip, energy: -15, stress: +5, rep: +4, xp: +8 }, `Gig complete. Tips earned: $${tip}.`);
-              this.trackQuest("first-gig", 1);
-            }
-          },
-          { label: "Help Stranger", run: () => this.adjust({ rep: +9, energy: -5, stress: -2, xp: +6 }, "People noticed your kindness.") },
-          { label: "Confront Harasser", run: () => this.encounter("Harasser", 28, 50, { rep: +11, cash: +10 }, { health: -16, stress: +10 }) }
-        ]
-      },
-      cowork: {
-        title: "Cowork Hub",
-        text: "Keyboards click. Coffee flows. Deadlines approach.",
-        actions: [
-          {
-            label: "Deep Work Sprint", run: () => {
-              const quality = this.random() + (this.state.focus / 150);
-              if (quality > 1.1) {
-                this.adjust({ cash: +42, career: +12, energy: -14, stress: +4, xp: +14 }, "Exceptional output landed a bonus contract.");
-              } else {
-                this.adjust({ cash: +20, career: +7, energy: -10, stress: +3, xp: +8 }, "Solid progress delivered on time.");
-              }
-            }
-          },
-          { label: "Network Event", run: () => this.adjust({ rep: +10, cash: -7, focus: -2, xp: +8 }, "You expanded your professional network.") },
-          {
-            label: "Pitch Product", run: () => {
-              const score = this.random() * 100 + this.state.career * 0.5 + this.state.rep * 0.3;
-              if (score > 95) {
-                this.adjust({ cash: +95, career: +20, rep: +12, energy: -16, xp: +24 }, "Your pitch got funded. Huge leap forward.");
-                this.addItem("Prototype Tablet");
-              } else if (score > 70) {
-                this.adjust({ cash: +35, career: +11, rep: +6, energy: -12, xp: +14 }, "Promising pitch. Follow-up meetings scheduled.");
-              } else {
-                this.adjust({ cash: -10, stress: +9, energy: -8, xp: +6 }, "Pitch flopped, but feedback was useful.", "warn");
-              }
-            }
-          }
-        ]
-      },
-      gym: {
-        title: "Gym",
-        text: "Train now, perform better everywhere else.",
-        actions: [
-          { label: "Strength Session", run: () => this.adjust({ health: +8, energy: -13, stress: -5, xp: +9 }, "You finished a focused training block.") },
-          { label: "Cardio Run", run: () => this.adjust({ health: +6, energy: -10, focus: +8, stress: -7, xp: +8 }, "Cardio improved your stamina and clarity.") },
-          { label: "Sparring", run: () => this.encounter("Sparring Partner", 22, 46, { rep: +8, career: +3, xp: +7 }, { health: -12, stress: +5 }) }
-        ]
-      },
-      market: {
-        title: "Market District",
-        text: "A maze of stalls, street food, and side deals.",
-        actions: [
-          { label: "Buy Energy Drink ($9)", run: () => this.purchase("Energy Drink", 9, { energy: +16, stress: +2 }, "Quick boost, slight crash risk.") },
-          { label: "Buy Journal ($14)", run: () => this.purchase("Journal", 14, { focus: +10, stress: -4 }, "Writing helps you process the day.") },
-          {
-            label: "Flip Old Tech", run: () => {
-              if (this.random() > 0.6) {
-                this.adjust({ cash: +30, rep: +4, xp: +7 }, "Great flip. You read the market right.");
-              } else {
-                this.adjust({ cash: +10, stress: +2, xp: +4 }, "Small profit after haggling.", "warn");
-              }
-            }
-          }
-        ]
-      },
-      subway: {
-        title: "Subway",
-        text: "Fast movement, random encounters, and real city tension.",
-        actions: [
-          { label: "Read During Commute", run: () => this.adjust({ focus: +12, energy: -3, xp: +6 }, "Tiny learning session complete.") },
-          { label: "Defend a Commuter", run: () => this.encounter("Pickpocket", 30, 55, { rep: +14, cash: +14, xp: +12 }, { health: -18, cash: -8, stress: +9 }) },
-          { label: "Quiet Observation", run: () => this.adjust({ stress: -6, focus: +5, xp: +4 }, "You slowed down and reset your mindset.") }
-        ]
-      },
-      park: {
-        title: "City Park",
-        text: "Breathing room among towers and traffic.",
-        actions: [
-          { label: "Walk + Podcast", run: () => this.adjust({ health: +5, focus: +7, stress: -7, xp: +6 }, "You learned while decompressing.") },
-          { label: "Community Volunteering", run: () => this.adjust({ rep: +13, energy: -8, stress: -2, xp: +10 }, "Neighborhood trust increased.") },
-          { label: "Freestyle Basketball", run: () => this.encounter("Street Challenger", 26, 52, { rep: +10, health: +4, xp: +8 }, { health: -10, stress: +4 }) }
+          { label: "Rest", run: () => this.adjust({ energy: +14, health: +5, stress: -5, happiness: +4, xp: +3 }, "You recharged at home.") },
+          { label: "Talk with Family", run: () => this.adjust({ happiness: +8, stress: -4, rep: +1, xp: +3 }, "Family support helped your mindset.") }
         ]
       }
+    };
+
+    const byStage = {
+      infant: {
+        playroom: {
+          title: "Playroom",
+          text: "Early growth years full of tiny milestones.",
+          actions: [
+            { label: "Learn to Crawl", run: () => this.adjust({ focus: +5, health: +4, xp: +6 }, "You hit a baby milestone.") },
+            { label: "Story Time", run: () => this.adjust({ focus: +6, happiness: +6, education: +2, xp: +6 }, "Story time boosted early learning.") }
+          ]
+        }
+      },
+      child: {
+        school: {
+          title: "School",
+          text: "Learn basics, make friends, and build habits.",
+          actions: [
+            { label: "Attend Class", run: () => this.adjust({ education: +6, focus: +4, stress: +2, xp: +8 }, "You learned important basics.") },
+            { label: "Join Club", run: () => this.adjust({ rep: +4, happiness: +5, energy: -4, xp: +6 }, "You made new friends.") }
+          ]
+        },
+        park: {
+          title: "Neighborhood Park",
+          text: "Play, socialize, and stay active.",
+          actions: [
+            { label: "Play Sports", run: () => this.adjust({ health: +6, happiness: +6, energy: -6, xp: +6 }, "You stayed active and had fun.") }
+          ]
+        }
+      },
+      teen: {
+        highschool: {
+          title: "High School",
+          text: "Prepare for exams, life choices, and responsibility.",
+          actions: [
+            { label: "Study for Exams", run: () => this.adjust({ education: +8, focus: +7, stress: +4, xp: +10 }, "Exam prep paid off.") },
+            { label: "Part-time Shift", run: () => this.adjust({ cash: +45, career: +5, energy: -7, stress: +2, xp: +9 }, "You gained first work experience.") }
+          ]
+        },
+        community: {
+          title: "Community Center",
+          text: "Volunteer and build your reputation.",
+          actions: [
+            { label: "Volunteer", run: () => this.adjust({ rep: +8, happiness: +5, energy: -5, xp: +8 }, "Your community trusts you more.") }
+          ]
+        }
+      },
+      "young-adult": {
+        campus: {
+          title: "College / Training",
+          text: "Build career skills and professional direction.",
+          actions: [
+            { label: "Attend Course", run: () => this.adjust({ education: +9, focus: +6, stress: +3, xp: +10 }, "You gained practical skills.") },
+            { label: "Internship", run: () => this.adjust({ cash: +85, career: +8, rep: +3, energy: -8, xp: +11 }, "You built your resume.") }
+          ]
+        },
+        office: {
+          title: "Starter Job",
+          text: "Take your first serious career steps.",
+          actions: [
+            { label: "Work Shift", run: () => this.adjust({ cash: +110, career: +10, stress: +4, energy: -8, xp: +10 }, "You completed solid work this year.") },
+            { label: "Network", run: () => this.adjust({ rep: +8, career: +4, cash: -10, xp: +8 }, "You grew your professional network.") }
+          ]
+        }
+      },
+      adult: {
+        workplace: {
+          title: "Career",
+          text: "Advance your career and life stability.",
+          actions: [
+            { label: "Deliver Major Project", run: () => this.adjust({ cash: +180, career: +12, stress: +5, energy: -10, xp: +12 }, "A major project moved your career forward.") },
+            { label: "Mentor Others", run: () => this.adjust({ rep: +10, career: +6, happiness: +6, xp: +9 }, "Mentoring improved your impact.") }
+          ]
+        },
+        family: {
+          title: "Family Life",
+          text: "Balance success with meaningful relationships.",
+          actions: [
+            { label: "Family Time", run: () => this.adjust({ happiness: +10, stress: -7, energy: +4, xp: +7 }, "You prioritized what matters.") }
+          ]
+        }
+      },
+      elder: {
+        retirement: {
+          title: "Retirement",
+          text: "Reflect, mentor, and enjoy a slower pace.",
+          actions: [
+            { label: "Mentor Youth", run: () => this.adjust({ rep: +9, happiness: +8, stress: -5, xp: +7 }, "Your wisdom helped the next generation.") },
+            { label: "Health Routine", run: () => this.adjust({ health: +8, energy: +5, stress: -6, xp: +6 }, "You invested in long-term health.") }
+          ]
+        }
+      }
+    };
+
+    return {
+      ...common,
+      ...(byStage[stage] || {})
     };
   }
 }
 
 export function migrateSave(parsed) {
   const next = { ...parsed };
-  if (!next.saveVersion || next.saveVersion < 2) {
-    next.saveVersion = 2;
+
+  if (!next.saveVersion || next.saveVersion < 3) {
+    next.saveVersion = 3;
+    next.age = typeof next.age === "number" ? next.age : 0;
+    next.stage = next.stage || getStageFromAge(next.age).key;
+    next.happiness = typeof next.happiness === "number" ? next.happiness : 60;
+    next.education = typeof next.education === "number" ? next.education : 0;
+    if (!next.stats) next.stats = { yearsLived: next.age || 0 };
     if (!Array.isArray(next.quests)) next.quests = clone(BASE_STATE.quests);
-    if (!next.stats) next.stats = { wins: 0, losses: 0 };
   }
+
   return next;
 }
 
@@ -347,24 +368,19 @@ function bindUI() {
   const panels = Array.from(document.querySelectorAll("[data-panel]"));
 
   const activateTab = tabName => {
-    tabs.forEach(btn => {
-      btn.classList.toggle("is-active", btn.dataset.tab === tabName);
-    });
-    panels.forEach(panel => {
-      panel.classList.toggle("hidden", panel.dataset.panel !== tabName);
-    });
+    tabs.forEach(btn => btn.classList.toggle("is-active", btn.dataset.tab === tabName));
+    panels.forEach(panel => panel.classList.toggle("hidden", panel.dataset.panel !== tabName));
   };
 
-  tabs.forEach(btn => {
-    btn.addEventListener("click", () => activateTab(btn.dataset.tab));
-  });
+  tabs.forEach(btn => btn.addEventListener("click", () => activateTab(btn.dataset.tab)));
 
   const renderScene = () => {
     const loc = engine.locations[engine.state.location];
-    ui.sceneTitle.textContent = loc.title;
+    ui.sceneTitle.textContent = `${loc.title} (${getStageFromAge(engine.state.age).label})`;
     ui.sceneText.textContent = loc.text;
+
     ui.actions.innerHTML = "";
-    for (const action of loc.actions) {
+    loc.actions.forEach(action => {
       const b = document.createElement("button");
       b.textContent = action.label;
       b.onclick = () => {
@@ -372,7 +388,7 @@ function bindUI() {
         renderAll();
       };
       ui.actions.appendChild(b);
-    }
+    });
 
     ui.routes.innerHTML = "";
     for (const [key, location] of Object.entries(engine.locations)) {
@@ -389,6 +405,9 @@ function bindUI() {
 
   const renderAll = () => {
     const s = engine.state;
+    const stage = getStageFromAge(s.age);
+    const need = xpToLevel(s.level);
+
     ui.level.textContent = s.level;
     ui.health.textContent = s.health;
     ui.energy.textContent = s.energy;
@@ -397,10 +416,9 @@ function bindUI() {
     ui.rep.textContent = s.rep;
     ui.career.textContent = s.career;
     ui.stress.textContent = s.stress;
-    ui.dayLabel.textContent = s.day;
-    ui.cycleLabel.textContent = CYCLES[s.cycle];
+    ui.dayLabel.textContent = s.age;
+    ui.cycleLabel.textContent = stage.label;
 
-    const need = xpToLevel(s.level);
     ui.xpText.textContent = `${s.xp}/${need}`;
     ui.xpBar.style.width = `${(s.xp / need) * 100}%`;
     ui.healthBar.style.width = `${(s.health / 120) * 100}%`;
@@ -419,7 +437,7 @@ function bindUI() {
     });
 
     ui.inventory.innerHTML = "";
-    s.inventory.slice(-8).forEach(item => {
+    s.inventory.slice(-10).forEach(item => {
       const li = document.createElement("li");
       li.className = "inv-item";
       li.textContent = item;
@@ -433,10 +451,10 @@ function bindUI() {
       li.textContent = "No achievements yet.";
       ui.achievements.appendChild(li);
     } else {
-      s.achievements.slice(-6).reverse().forEach(a => {
+      s.achievements.slice(-8).reverse().forEach(a => {
         const li = document.createElement("li");
         li.className = "ach";
-        li.innerHTML = `<strong>🏆 ${a.name}</strong><small>${a.description} (Day ${a.day})</small>`;
+        li.innerHTML = `<strong>🏆 ${a.name}</strong><small>${a.description} (Age ${a.age})</small>`;
         ui.achievements.appendChild(li);
       });
     }
@@ -455,11 +473,11 @@ function bindUI() {
     renderAll();
   };
   el("restBtn").onclick = () => {
-    engine.adjust({ energy: +18, health: +6, stress: -3 }, "Power nap helped you reset.");
+    engine.adjust({ energy: +16, health: +5, stress: -5, happiness: +5 }, "You took a restful break.");
     renderAll();
   };
   el("meditateBtn").onclick = () => {
-    engine.adjust({ focus: +12, stress: -10, xp: +5 }, "Breathing exercise calmed your nervous system.");
+    engine.adjust({ focus: +10, stress: -8, happiness: +4, xp: +4 }, "You centered yourself and gained clarity.");
     renderAll();
   };
   el("saveBtn").onclick = () => {
@@ -481,13 +499,13 @@ function bindUI() {
     renderAll();
   };
   el("newRunBtn").onclick = () => {
-    if (!confirm("Start a brand new run?")) return;
+    if (!confirm("Start a brand new life?")) return;
     engine.newRun();
     renderAll();
   };
 
-  engine.log("Welcome to the expanded modern-world run.", "good");
-  engine.log("Tip: Build rep + career to unlock stronger outcomes.", "warn");
+  engine.log("You were born. Build your life from childhood to adulthood.", "good");
+  engine.log("Tip: focus on education early, then build career in adulthood.", "warn");
   activateTab("game");
   renderAll();
 }
